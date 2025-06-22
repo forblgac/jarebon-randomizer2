@@ -1,7 +1,7 @@
 // じゃれ本ランダマイザー トップページ
 import { json, LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import ClientOnlyYouTube from "../components/ClientOnlyYouTube";
 
 type Work = {
@@ -27,59 +27,22 @@ export default function Index() {
   const { works } = useLoaderData<typeof loader>();
   const [current, setCurrent] = useState<Work>(() => getRandomWork(works));
   const [playing, setPlaying] = useState(true);
-  const playerRef = useRef<any>(null);
 
   function getRandomWork(works: Work[]) {
     return works[Math.floor(Math.random() * works.length)];
   }
 
-  function handleEnd() {
-    const next = getRandomWork(works);
-    setCurrent(next);
+  // currentが変わったら自動再生
+  useEffect(() => {
     setPlaying(true);
+  }, [current]);
+
+  function handleEnd() {
+    setCurrent(getRandomWork(works));
   }
 
   function handleSkip() {
-    handleEnd();
-  }
-
-  function onReady(event: any) {
-    playerRef.current = event.target;
-    event.target.seekTo(current.startTime, true);
-    if (playing) event.target.playVideo();
-  }
-
-  function onPlay() {
-    setPlaying(true);
-  }
-
-  function onPause() {
-    setPlaying(false);
-  }
-
-  function onStateChange(event: any) {
-    // 1: playing, 2: paused, 0: ended
-    if (event.data === 1 && playerRef.current) {
-      // 再生開始時にstartTimeへシーク
-      playerRef.current.seekTo(current.startTime, true);
-    }
-    if (event.data === 0) {
-      handleEnd();
-    }
-  }
-
-  function onProgress(event: any) {
-    // endTimeで停止
-    const player = event.target;
-    const interval = setInterval(() => {
-      player.getCurrentTime().then((t: number) => {
-        if (t >= current.endTime) {
-          player.pauseVideo();
-          clearInterval(interval);
-          handleEnd();
-        }
-      });
-    }, 500);
+    setCurrent(getRandomWork(works));
   }
 
   return (
@@ -110,9 +73,18 @@ export default function Index() {
             <span className="font-semibold">作品タイトル：</span>
             {current.workTitle}
           </div>
-          <div>
+          <div className="mb-2">
             <span className="font-semibold">作者：</span>
-            {current.author}
+            {current.author
+              .split(/[、,]/)
+              .map((name, i) => (
+                <span
+                  key={i}
+                  className="inline-block bg-gray-200 text-gray-800 rounded px-2 py-0.5 mr-1 text-sm"
+                >
+                  {name.trim()}
+                </span>
+              ))}
           </div>
         </div>
         <div className="flex gap-4 mt-4">
@@ -124,13 +96,25 @@ export default function Index() {
           </button>
           <button
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-            onClick={() => {
-              if (playerRef.current) {
-                playing ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
-              }
-            }}
+            onClick={() => setPlaying((p) => !p)}
           >
             {playing ? "一時停止" : "再生"}
+          </button>
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            onClick={() => {
+              // ミュート解除
+              const iframe = document.querySelector("iframe");
+              if (iframe && iframe.contentWindow) {
+                // YouTube IFrame API経由でアンミュート
+                // ただしreact-youtubeのplayerRefがないので、ユーザーに一度再生/一時停止を促す
+                iframe.focus();
+              }
+              // ユーザー操作で再生ボタンを押すとアンミュートされる
+              alert("動画プレイヤーの再生ボタンを押すと音声が有効になります。");
+            }}
+          >
+            ミュート解除方法
           </button>
         </div>
       </div>
